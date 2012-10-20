@@ -1,0 +1,7 @@
+;; -*- scheme -*-
+(compile -d0 -O3 awful-boilerplate.scm)
+
+(install-program
+ 'awful-boilerplate
+ '("awful-boilerplate")
+ '((version "0.0.1")))
