@@ -131,10 +131,12 @@ EOF
          (host . "localhost")))
       ")\n")
      "")
-(#egg-name "/" #(case (string->symbol db-type)
-                                 ((postgresql) "credentials")
-                                 ((sqlite3 sql-de-lite) (write-string "the-db-file.db"))
-                                 (else "")))
+(#egg-name "/" #(if db-type
+                    (case (string->symbol db-type)
+                      ((postgresql) "credentials")
+                      ((sqlite3 sql-de-lite) (write-string "the-db-file.db"))
+                      (else ""))
+                    ""))
 EOF
 )
   (print dir " has been created.")
