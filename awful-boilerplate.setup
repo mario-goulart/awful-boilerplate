@@ -1,5 +1,5 @@
 ;; -*- scheme -*-
-(compile -d0 -O3 awful-boilerplate.scm)
+(compile -d2 -O3 awful-boilerplate.scm)
 
 (install-program
  'awful-boilerplate
