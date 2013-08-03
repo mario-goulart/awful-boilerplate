@@ -1,5 +1,5 @@
 ;; -*- scheme -*-
 ((synopsis "Generates a work directory for awful applications")
- (author "<a href=\"http://wiki.call-cc.org/users/mario-domenech-goulart\">Mario Domenech Goulart</a>")
+ (author "Mario Domenech Goulart")
  (category egg-tools)
  (license "BSD"))
