@@ -2,7 +2,7 @@
 
 (define db-types '(postgresql sql-de-lite sqlite3))
 
-;; Some code stolen from chicken-hatch
+;; Stolen from chicken-hatch
 (define (prompt-for prompt #!optional default valid-options)
   (let loop ()
     (newline)
@@ -28,8 +28,174 @@
       (display content out)
       (newline out))))
 
-(define (write-string x)
-  (with-output-to-string (lambda () (write x))))
+(define-record egg
+  name
+  author
+  license
+  synopsis
+  db-type
+  name.scm
+  name.so
+  name.import.scm
+  name.import.so)
+
+(define %make-egg make-egg)
+
+(define (make-egg name author license synopsis db-type)
+  (%make-egg name
+             author
+             license
+             synopsis
+             db-type
+             (string-append name ".scm")
+             (string-append name ".so")
+             (string-append name ".import.scm")
+             (string-append name ".import.so")))
+
+
+(define (write-setup-file dir egg-obj)
+  (write-egg-file (make-pathname dir (egg-name egg-obj) "setup")
+                  (sprintf
+#<#EOF
+(compile -d0 -O3 -J -s ~a)
+(compile -d0 -O3 -s ~a)
+
+(install-extension
+ '~a
+ '~S
+ '((version "0.0.1")))
+EOF
+  (egg-name.scm egg-obj)
+  (egg-name.import.scm egg-obj)
+  (egg-name egg-obj)
+  (list (egg-name.so egg-obj) (egg-name.import.so egg-obj)))))
+
+
+(define (write-meta-file dir egg-obj)
+  (write-egg-file (make-pathname dir (egg-name egg-obj) "meta")
+                  (sprintf
+#<#EOF
+((synopsis ~S)
+ (author ~S)
+ (category web)
+ (license ~S)
+ (depends awful~a)
+ (test-depends)
+ (foreign-depends))
+EOF
+  (egg-synopsis egg-obj)
+  (egg-author egg-obj)
+  (egg-license egg-obj)
+  (let ((db-type (egg-db-type egg-obj)))
+    (if db-type
+        (string-append " awful-" db-type)
+        "")))))
+
+
+(define (write-module-file dir egg-obj)
+  (let ((name (egg-name egg-obj)))
+    (write-egg-file (make-pathname dir name "scm")
+                    (sprintf
+#<#EOF
+(module ~a (~a)
+(import chicken scheme)
+(include ~S)
+)
+EOF
+  name
+  name
+  (make-pathname "scm" name "scm")))))
+
+
+(define (write-app-main-file dir egg-obj)
+  (let ((name (egg-name egg-obj))
+        (db-type (egg-db-type egg-obj)))
+    (write-egg-file (make-pathname (list dir "scm") name "scm")
+                    (sprintf
+#<#EOF
+;; Core units
+(use irregex)
+
+;; Eggs
+(use awful~a)
+
+(define (~a base-path~a ##!key (awful-settings (lambda (_) (_))))
+
+  (define base-path-pattern (irregex (string-append base-path "(/.*)*")))
+
+  (define-app ~a
+    matcher: (lambda (path)
+               (irregex-match base-path-pattern path))
+    handler-hook: (lambda (handler)
+                    (parameterize ((enable-sxml ##t)
+                                   (app-root-path base-path)~a)
+                      ~a(awful-settings handler)))
+
+    (define-page (main-page-path)
+      (lambda ()
+        ~S))
+  ))
+EOF
+  (if db-type
+      (string-append " awful-" db-type)
+      "")
+  name
+  (if db-type " database-credentials" "")
+  name
+  (if db-type
+     "\n                                   (db-credentials database-credentials)"
+     "")
+  (if db-type
+      (sprintf "(switch-to-~a-database)\n                      " db-type)
+      "")
+  name))))
+
+(define (write-example-app-file dir egg-obj)
+  (let ((name (egg-name egg-obj))
+        (db-type (egg-db-type egg-obj)))
+    (write-egg-file (make-pathname dir (string-append name "-app") "scm")
+                    (sprintf
+#<#EOF
+(use ~a)
+
+;; While developing, you may want to
+;;   (load ~S)
+;; instead of (use ~a)
+
+~a(~a "/"~a)
+EOF
+  name
+  (make-pathname "scm" name "scm")
+  name
+  (if db-type
+      (case (string->symbol db-type)
+        ((postgresql)
+#<#EOF
+(define credentials
+  '((dbname . "the-database-name")
+    (user . "user")
+    (password . "password")
+    (host . "localhost")))
+
+
+EOF
+        )
+        ((sqlite3 sql-de-lite)
+#<#EOF
+(define db-file "the-db-file.db")
+
+
+EOF
+        ))
+    "")
+  name
+  (if db-type
+     (string-append " "
+                    (case (string->symbol db-type)
+                      ((postgresql) "credentials")
+                      ((sqlite3 sql-de-lite) "db-file")))
+     "")))))
+
 
 (define (create-work-dir dir license db-type)
   (create-directory dir 'with-parents)
@@ -40,107 +206,28 @@
   (let* ((egg-name (pathname-file dir))
          (egg-license
           (or license
-              (prompt-for "License (default is \"BSD\", same as Chicken's): " "BSD")))
+              (prompt-for
+               "License (default is \"BSD\", same as Chicken's): " "BSD")))
          (db-type (or db-type
                       (prompt-for
-                       (string-append "Database type (options: "
-                                      (string-intersperse (map symbol->string db-types) ", ")
-                                      " or blank for if your app doesn't use a database): ")
+                       (string-append
+                        "Database type (options: "
+                        (string-intersperse (map symbol->string db-types) ", ")
+                        " or blank for if your app doesn't use a database): ")
                        ""
                        (cons "" (map symbol->string db-types)))))
          (db-type (if (equal? db-type "") #f db-type))
          (egg-author (prompt-for "Your name: "))
          (egg-synopsis (prompt-for "Application synopsis: "))
-         (egg-symbol (string->symbol egg-name))
-         (egg-name.scm (string-append egg-name ".scm"))
-         (egg-name.so (string-append egg-name ".so"))
-         (egg-name.import.scm (string-append egg-name ".import.scm"))
-         (egg-name.import.so (string-append egg-name ".import.so")))
+         (egg-obj (make-egg egg-name egg-author egg-license egg-synopsis db-type)))
     (when db-type
-        (create-directory (make-pathname dir "sql")))
-    (write-egg-file (make-pathname dir egg-name "setup")
-#<#EOF
-(compile -d0 -O3 -J -s #(write-string (string->symbol egg-name.scm)))
-(compile -d0 -O3 -s #(write-string (string->symbol egg-name.import.scm)))
-
-(install-extension
- '#(write-string egg-symbol)
- '#(write-string (list egg-name.so egg-name.import.so))
- '((version "0.0.1")))
-EOF
-)
-
-    (write-egg-file (make-pathname dir egg-name "meta")
-#<#EOF
-((synopsis #(write-string egg-synopsis))
- (author #(write-string egg-author))
- (category web)
- (license #(write-string egg-license))
- (depends awful #(if db-type db-type ""))
- (test-depends)
- (foreign-depends))
-EOF
-)
-
-
-(write-egg-file (make-pathname dir egg-name "scm")
-#<#EOF
-(module #(write-string egg-symbol) (#(write-string egg-symbol))
-(import chicken scheme)
-#(string-append "(include \"" (make-pathname "scm" egg-name "scm") "\")")
-)
-EOF
-)
-
-(write-egg-file (make-pathname (list dir "scm") egg-name "scm")
-#<#EOF
-(use srfi-13 awful #(if db-type (string-append "awful-" db-type) ""))
-
-(define (#(write-string egg-symbol) base-path #(if db-type 'database-credentials "") ##!key (awful-settings (lambda (_) (_))))
-
-  (add-request-handler-hook!
-   '#(write-string egg-symbol)
-   (lambda (path handler)
-     (when (string-prefix? base-path path)
-       (parameterize ((enable-sxml ##t)
-                      (app-root-path base-path)
-                      (db-credentials database-credentials))
-         #(if db-type `(,(string->symbol (conc "switch-to-" db-type "-database"))) "")
-         (awful-settings handler)))))
-
-  ;; write the code of your app here
-  )
-EOF
-)
-
-(write-egg-file (make-pathname dir (string-append egg-name "-app") "scm")
-#<#EOF
-(use #(write-string egg-symbol))
-
-;; While developing, you may want to
-;;   #(write-string `(load ,(make-pathname "scm" egg-name "scm")))
-;; instead of (use #(write-string egg-symbol))
-
-#(if (equal? db-type "postgresql")
-     (string-append
-      "(define credentials '"
-      (write-string
-       '((dbname . "the-database-name")
-         (user . "user")
-         (password . "password")
-         (host . "localhost")))
-      ")\n")
-     "")
-(#egg-name "/" #(if db-type
-                    (case (string->symbol db-type)
-                      ((postgresql) "credentials")
-                      ((sqlite3 sql-de-lite) (write-string "the-db-file.db"))
-                      (else ""))
-                    ""))
-EOF
-)
-  (print dir " has been created.")
-  ));; end create-work-dir
+      (create-directory (make-pathname dir "sql")))
+    (write-setup-file dir egg-obj)
+    (write-meta-file dir egg-obj)
+    (write-module-file dir egg-obj)
+    (write-app-main-file dir egg-obj)
+    (write-example-app-file dir egg-obj)
+    (print dir " has been created.")))
 
 
 (define (cmd-line-arg option args)
