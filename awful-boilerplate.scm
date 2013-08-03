@@ -2,7 +2,6 @@
 
 (define db-types '(postgresql sql-de-lite sqlite3))
 
-;; Stolen from chicken-hatch
 (define (prompt-for prompt #!optional default valid-options)
   (let loop ()
     (newline)
@@ -10,10 +9,10 @@
     (let ((input (read-line)))
       (if (or (eof-object? input)
               (equal? (string-trim-both input) ""))
+          (or default (loop))
           (if (and valid-options (not (member input valid-options)))
               (loop)
-              (or default (loop)))
-          input))))
+              input)))))
 
 (define (check-db-type db-type)
   (unless (memq db-type db-types)
