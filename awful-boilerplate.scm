@@ -120,7 +120,8 @@ EOF
 
 (define (~a base-path~a ##!key (awful-settings (lambda (_) (_))))
 
-  (define base-path-pattern (irregex (string-append base-path "(/.*)*")))
+  (define base-path-pattern
+    (irregex (string-append (string-chomp base-path "/") "(/.*)*")))
 
   (define-app ~a
     matcher: (lambda (path)
