@@ -113,7 +113,7 @@ EOF
                     (sprintf
 #<#EOF
 ;; Core units
-(use irregex)
+(use data-structures irregex)
 
 ;; Eggs
 (use awful~a)
