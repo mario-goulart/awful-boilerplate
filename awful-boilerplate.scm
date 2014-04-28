@@ -87,7 +87,7 @@ EOF
   (egg-license egg-obj)
   (let ((db-type (egg-db-type egg-obj)))
     (if db-type
-        (string-append " awful-" db-type)
+        (conc " awful-" db-type)
         "")))))
 
 
@@ -137,7 +137,7 @@ EOF
   ))
 EOF
   (if db-type
-      (string-append " awful-" db-type)
+      (conc " awful-" db-type)
       "")
   name
   (if db-type " database-credentials" "")
@@ -168,7 +168,7 @@ EOF
   (make-pathname "scm" name "scm")
   name
   (if db-type
-      (case (string->symbol db-type)
+      (case db-type
         ((postgresql)
 #<#EOF
 (define credentials
@@ -191,7 +191,7 @@ EOF
   name
   (if db-type
      (string-append " "
-                    (case (string->symbol db-type)
+                    (case db-type
                       ((postgresql) "credentials")
                       ((sqlite3 sql-de-lite) "db-file")))
      "")))))
@@ -216,7 +216,9 @@ EOF
                         " or blank for if your app doesn't use a database): ")
                        ""
                        (cons "" (map symbol->string db-types)))))
-         (db-type (if (equal? db-type "") #f db-type))
+         (db-type (cond ((equal? db-type "") #f)
+                        ((symbol? db-type) db-type)
+                        (else (string->symbol db-type))))
          (egg-author (prompt-for "Your name: "))
          (egg-synopsis (prompt-for "Application synopsis: "))
          (egg-obj (make-egg egg-name egg-author egg-license egg-synopsis db-type)))
