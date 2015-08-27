@@ -207,7 +207,7 @@ EOF
          (egg-license
           (or license
               (prompt-for
-               "License (default is \"BSD\", same as Chicken's): " "BSD")))
+               "License (default is \"BSD\", same as CHICKEN's): " "BSD")))
          (db-type (or db-type
                       (prompt-for
                        (string-append
